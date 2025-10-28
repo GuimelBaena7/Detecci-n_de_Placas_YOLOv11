@@ -1,0 +1,7 @@
+ultralytics>=8.3.0
+pandas
+opencv-python
+numpy
+scipy
+# easyocr  # OCR deshabilitado
+filterpy

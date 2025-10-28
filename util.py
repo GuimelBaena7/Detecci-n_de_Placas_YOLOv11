@@ -30,8 +30,12 @@ def write_csv(results, output_path):
                     lp_text_score = float(lp['text_score']) if isinstance(lp['text_score'], (int, float, np.floating)) else 0
                     lp_text = lp['text'] if 'text' in lp else 'NO_OCR'
                     
+                    # Formatear las coordenadas correctamente
+                    car_bbox_str = ' '.join(map(str, car_bbox))
+                    lp_bbox_str = ' '.join(map(str, lp_bbox))
+                    
                     # Escribir la línea al CSV
-                    f.write(f'{frame_nmr},{car_id},"{car_bbox}","{lp_bbox}",{lp_bbox_score},{lp_text},{lp_text_score}\n')
+                    f.write(f'{frame_nmr},{car_id},[{car_bbox_str}],[{lp_bbox_str}],{lp_bbox_score},{lp_text},{lp_text_score}\n')
 
 # ----------------------------------------------------------
 # 🧩 Mejorada: Validación flexible para placas colombianas - DESHABILITADO

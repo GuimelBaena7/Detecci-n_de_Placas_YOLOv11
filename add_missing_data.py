@@ -57,8 +57,8 @@ def interpolate_bounding_boxes(data):
             row = {}
             row['frame_nmr'] = str(frame_number)
             row['car_id'] = str(car_id)
-            row['car_bbox'] = ' '.join(map(str, car_bboxes_interpolated[i]))
-            row['license_plate_bbox'] = ' '.join(map(str, license_plate_bboxes_interpolated[i]))
+            row['car_bbox'] = '[' + ' '.join(map(str, car_bboxes_interpolated[i])) + ']'
+            row['license_plate_bbox'] = '[' + ' '.join(map(str, license_plate_bboxes_interpolated[i])) + ']'
 
             if str(frame_number) not in frame_numbers_:
                 # Imputed row, set the following fields to '0' (OCR deshabilitado)

@@ -3,5 +3,6 @@ pandas
 opencv-python
 numpy
 scipy
-# easyocr  # OCR deshabilitado
 filterpy
+# easyocr  # OCR deshabilitado
+# lap  # Opcional para SORT, se usa scipy como alternativa

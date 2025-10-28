@@ -62,27 +62,34 @@ while ret:
                 xcar1, ycar1, xcar2, ycar2, car_id = get_car(license_plate, track_ids)
 
                 if car_id != -1:
-
                     # crop license plate
                     license_plate_crop = frame[int(y1):int(y2), int(x1): int(x2), :]
+                    
                     # Guardar la imagen recortada de la placa
                     try:
-                        nombre_imagen = f"imagenes/placa_frame{frame_nmr}_car{car_id}.jpg"
+                        nombre_imagen = f"imagenes/placa_frame{frame_nmr}_car{int(car_id)}.jpg"
                         cv2.imwrite(nombre_imagen, license_plate_crop)
                         print(f"💾 Placa guardada: {nombre_imagen}")
                     except Exception as e:
                         print(f"⚠️ Error al guardar imagen de placa: {e}")
 
-                    # read license plate number - OCR DESHABILITADO
-                    # license_plate_text, license_plate_text_score = read_license_plate(license_plate_crop)
-
                     # Guardar solo detección sin OCR
-                    results[frame_nmr][car_id] = {'car': {'bbox': [xcar1, ycar1, xcar2, ycar2]},
-                                                  'license_plate': {'bbox': [x1, y1, x2, y2],
-                                                                    'text': 'NO_OCR',  # OCR deshabilitado
-                                                                    'bbox_score': score,
-                                                                    'text_score': 0.0}}  # Sin puntuación OCR
-        print(f"🟦 Frame {frame_nmr}: Placas detectadas = {num_placas}")                        
+                    results[frame_nmr][int(car_id)] = {
+                        'car': {'bbox': [xcar1, ycar1, xcar2, ycar2]},
+                        'license_plate': {
+                            'bbox': [x1, y1, x2, y2],
+                            'text': 'NO_OCR',
+                            'bbox_score': score,
+                            'text_score': 0.0
+                        }
+                    }
+                    print(f"✅ Datos guardados: Frame {frame_nmr}, Car ID {int(car_id)}")
+        print(f"🟦 Frame {frame_nmr}: Placas detectadas = {num_placas}")
 
 # write results
+print(f"\n📊 Procesamiento completado. Guardando resultados...")
+print(f"📈 Total de frames procesados: {frame_nmr + 1}")
+print(f"📋 Total de detecciones guardadas: {sum(len(results[f]) for f in results)}")
 write_csv(results, './test.csv')
+print(f"✅ Archivo CSV guardado: ./test.csv")
+cap.release()

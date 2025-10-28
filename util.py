@@ -28,6 +28,10 @@ def write_csv(results, output_path):
                     lp_bbox = [float(x) if isinstance(x, (int, float, np.floating)) else 0 for x in lp['bbox']]
                     lp_bbox_score = float(lp['bbox_score']) if isinstance(lp['bbox_score'], (int, float, np.floating)) else 0
                     lp_text_score = float(lp['text_score']) if isinstance(lp['text_score'], (int, float, np.floating)) else 0
+                    lp_text = lp['text'] if 'text' in lp else 'NO_OCR'
+                    
+                    # Escribir la línea al CSV
+                    f.write(f'{frame_nmr},{car_id},"{car_bbox}","{lp_bbox}",{lp_bbox_score},{lp_text},{lp_text_score}\n')
 
 # ----------------------------------------------------------
 # 🧩 Mejorada: Validación flexible para placas colombianas - DESHABILITADO
@@ -121,6 +125,6 @@ def get_car(license_plate, vehicle_track_ids):
 
         # Si la placa está dentro de la caja del carro
         if x1 > xcar1 and y1 > ycar1 and x2 < xcar2 and y2 < ycar2:
-            return vehicle_track_ids[j]
+            return xcar1, ycar1, xcar2, ycar2, car_id
 
     return -1, -1, -1, -1, -1

@@ -19,7 +19,7 @@ coco_model = YOLO('yolo11n.pt')  # YOLOv11 nano model
 license_plate_detector = YOLO('license_plate_detector.pt')
 
 # load video
-ruta_video = input("👉 Ingresa la ruta o nombre del archivo de video: ")
+ruta_video = input(" Ingresa la ruta o nombre del archivo de video: ")
 cap = cv2.VideoCapture(ruta_video)
 
 vehicles = [2, 3, 5, 7]
@@ -43,7 +43,7 @@ while ret:
                     detections_.append([x1, y1, x2, y2, score])
                     num_vehiculos += 1
 
-        print(f"🟩 Frame {frame_nmr}: Vehículos detectados = {num_vehiculos}")
+        print(f" Frame {frame_nmr}: Vehículos detectados = {num_vehiculos}")
 
         # track vehicles
         if len(detections_) == 0:
@@ -69,9 +69,9 @@ while ret:
                     try:
                         nombre_imagen = f"imagenes/placa_frame{frame_nmr}_car{int(car_id)}.jpg"
                         cv2.imwrite(nombre_imagen, license_plate_crop)
-                        print(f"💾 Placa guardada: {nombre_imagen}")
+                        print(f" Placa guardada: {nombre_imagen}")
                     except Exception as e:
-                        print(f"⚠️ Error al guardar imagen de placa: {e}")
+                        print(f" Error al guardar imagen de placa: {e}")
 
                     # Guardar solo detección sin OCR
                     results[frame_nmr][int(car_id)] = {
@@ -83,13 +83,13 @@ while ret:
                             'text_score': 0.0
                         }
                     }
-                    print(f"✅ Datos guardados: Frame {frame_nmr}, Car ID {int(car_id)}")
-        print(f"🟦 Frame {frame_nmr}: Placas detectadas = {num_placas}")
+                    print(f" Datos guardados: Frame {frame_nmr}, Car ID {int(car_id)}")
+        print(f" Frame {frame_nmr}: Placas detectadas = {num_placas}")
 
 # write results
-print(f"\n📊 Procesamiento completado. Guardando resultados...")
-print(f"📈 Total de frames procesados: {frame_nmr + 1}")
-print(f"📋 Total de detecciones guardadas: {sum(len(results[f]) for f in results)}")
+print(f"\n Procesamiento completado. Guardando resultados...")
+print(f" Total de frames procesados: {frame_nmr + 1}")
+print(f" Total de detecciones guardadas: {sum(len(results[f]) for f in results)}")
 write_csv(results, './test.csv')
-print(f"✅ Archivo CSV guardado: ./test.csv")
+print(f" Archivo CSV guardado: ./test.csv")
 cap.release()

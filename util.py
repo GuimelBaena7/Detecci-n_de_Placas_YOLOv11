@@ -12,28 +12,43 @@ dict_char_to_int = {'O': '0', 'Q': '0', 'I': '1', 'L': '1', 'B': '8', 'S': '5', 
 dict_int_to_char = {'0': 'O', '1': 'I', '2': 'Z', '3': 'B', '4': 'A', '5': 'S', '6': 'G', '8': 'B'}
 
 def write_csv(results, output_path):
-    """Guardar resultados en archivo CSV"""
-    with open(output_path, 'w') as f:
-        f.write('frame_nmr,car_id,car_bbox,license_plate_bbox,license_plate_bbox_score,license_number,license_number_score\\n')
+    """Guardar resultados en archivo CSV de forma segura"""
+    with open(output_path, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        writer.writerow([
+            'frame_nmr', 'car_id', 'car_bbox',
+            'license_plate_bbox', 'license_plate_bbox_score',
+            'license_number', 'license_number_score'
+        ])
 
-        for frame_nmr in results.keys():
-            for car_id in results[frame_nmr].keys():
-                data = results[frame_nmr][car_id]
-
+        for frame_nmr, cars in results.items():
+            for car_id, data in cars.items():
                 if 'car' in data and 'license_plate' in data:
                     lp = data['license_plate']
-                    car_bbox = [float(x) if isinstance(x, (int, float, np.floating)) else 0 for x in data['car']['bbox']]
-                    lp_bbox = [float(x) if isinstance(x, (int, float, np.floating)) else 0 for x in lp['bbox']]
-                    lp_bbox_score = float(lp['bbox_score']) if isinstance(lp['bbox_score'], (int, float, np.floating)) else 0
-                    lp_text_score = float(lp['text_score']) if isinstance(lp['text_score'], (int, float, np.floating)) else 0
-                    lp_text = lp['text'] if 'text' in lp else 'UNKNOWN'
-                    
-                    # Formatear coordenadas
+
+                    # Manejo seguro de valores
+                    car_bbox = [
+                        float(x) if isinstance(x, (int, float, np.floating)) else 0
+                        for x in data['car'].get('bbox', [0, 0, 0, 0])
+                    ]
+                    lp_bbox = [
+                        float(x) if isinstance(x, (int, float, np.floating)) else 0
+                        for x in lp.get('bbox', [0, 0, 0, 0])
+                    ]
+
+                    lp_bbox_score = float(lp.get('bbox_score', 0)) if lp.get('bbox_score') is not None else 0
+                    lp_text_score = float(lp.get('text_score', 0)) if lp.get('text_score') is not None else 0
+                    lp_text = lp.get('text', 'UNKNOWN')
+
+                    # Convertir listas a strings compactos
                     car_bbox_str = ' '.join(map(str, car_bbox))
                     lp_bbox_str = ' '.join(map(str, lp_bbox))
-                    
-                    # Escribir línea al CSV
-                    f.write(f'{frame_nmr},{car_id},[{car_bbox_str}],[{lp_bbox_str}],{lp_bbox_score},{lp_text},{lp_text_score}\\n')
+
+                    writer.writerow([
+                        frame_nmr, car_id, f"[{car_bbox_str}]",
+                        f"[{lp_bbox_str}]", lp_bbox_score,
+                        lp_text, lp_text_score
+                    ])
 
 def license_complies_format(text):
     """Validar formato de placa vehicular"""

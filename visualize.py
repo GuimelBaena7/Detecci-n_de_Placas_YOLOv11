@@ -1,130 +1,214 @@
 import ast
-
 import cv2
 import numpy as np
 import pandas as pd
 
-
 def draw_border(img, top_left, bottom_right, color=(0, 255, 0), thickness=10, line_length_x=200, line_length_y=200):
+    """Dibujar bordes estilizados alrededor de vehículos"""
     x1, y1 = top_left
     x2, y2 = bottom_right
 
-    cv2.line(img, (x1, y1), (x1, y1 + line_length_y), color, thickness)  #-- top-left
+    # Esquinas superiores
+    cv2.line(img, (x1, y1), (x1, y1 + line_length_y), color, thickness)
     cv2.line(img, (x1, y1), (x1 + line_length_x, y1), color, thickness)
-
-    cv2.line(img, (x1, y2), (x1, y2 - line_length_y), color, thickness)  #-- bottom-left
-    cv2.line(img, (x1, y2), (x1 + line_length_x, y2), color, thickness)
-
-    cv2.line(img, (x2, y1), (x2 - line_length_x, y1), color, thickness)  #-- top-right
+    cv2.line(img, (x2, y1), (x2 - line_length_x, y1), color, thickness)
     cv2.line(img, (x2, y1), (x2, y1 + line_length_y), color, thickness)
 
-    cv2.line(img, (x2, y2), (x2, y2 - line_length_y), color, thickness)  #-- bottom-right
+    # Esquinas inferiores
+    cv2.line(img, (x1, y2), (x1, y2 - line_length_y), color, thickness)
+    cv2.line(img, (x1, y2), (x1 + line_length_x, y2), color, thickness)
+    cv2.line(img, (x2, y2), (x2, y2 - line_length_y), color, thickness)
     cv2.line(img, (x2, y2), (x2 - line_length_x, y2), color, thickness)
 
     return img
 
+def parse_bbox(bbox_str):
+    """Parsear string de coordenadas a lista de números"""
+    try:
+        return ast.literal_eval(bbox_str.replace('[ ', '[').replace('   ', ' ').replace('  ', ' ').replace(' ', ','))
+    except:
+        # Fallback para formatos alternativos
+        coords = bbox_str.strip('[]').split()
+        return [float(x) for x in coords if x]
 
-# Intentar leer el archivo interpolado, si no existe usar el original
-try:
-    results = pd.read_csv('./test_interpolated.csv')
-    print("📊 Usando datos interpolados")
-except FileNotFoundError:
-    results = pd.read_csv('./test.csv')
-    print("📊 Usando datos originales (sin interpolar)")
+def main():
+    print("🎬 Iniciando visualización...")
+    
+    # Cargar datos
+    try:
+        results = pd.read_csv('./test_interpolated.csv')
+        print("📊 Usando datos interpolados")
+    except FileNotFoundError:
+        try:
+            results = pd.read_csv('./test.csv')
+            print("📊 Usando datos originales")
+        except FileNotFoundError:
+            print("❌ No se encontró archivo de datos (test.csv o test_interpolated.csv)")
+            return
 
-ruta_video = input("👉 Ingresa la ruta o nombre del archivo de video: ")
-cap = cv2.VideoCapture(ruta_video)
+    # Cargar video
+    ruta_video = input("👉 Ingresa la ruta del video: ")
+    cap = cv2.VideoCapture(ruta_video)
+    
+    if not cap.isOpened():
+        print("❌ Error al abrir el video")
+        return
 
-fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Specify the codec
-fps = cap.get(cv2.CAP_PROP_FPS)
-width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-out = cv2.VideoWriter('./out.mp4', fourcc, fps, (width, height))
+    # Configurar video de salida
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    out = cv2.VideoWriter('./out.mp4', fourcc, fps, (width, height))
 
-license_plate = {}
-for car_id in np.unique(results['car_id']):
-    max_ = np.amax(results[results['car_id'] == car_id]['license_number_score'])
-    # Filtrar solo filas con puntuación válida para OCR deshabilitado
-    car_data = results[results['car_id'] == car_id]
-    if len(car_data) > 0:
-        license_plate[car_id] = {'license_crop': None,
-                                 'license_plate_number': 'NO_OCR'}  # OCR deshabilitado
-        # Obtener el primer frame donde aparece este vehículo
-        first_frame = car_data['frame_nmr'].iloc[0]
-        cap.set(cv2.CAP_PROP_POS_FRAMES, first_frame)
+    print(f"📹 Video: {width}x{height} @ {fps} FPS")
+
+    # Preparar datos de placas por vehículo
+    license_plate_data = {}
+    
+    for car_id in results['car_id'].unique():
+        car_data = results[results['car_id'] == car_id]
+        
+        # Encontrar la mejor lectura de placa para este vehículo
+        best_score = 0
+        best_text = 'UNKNOWN'
+        best_frame = car_data['frame_nmr'].iloc[0]
+        
+        for _, row in car_data.iterrows():
+            if row['license_number_score'] > best_score and row['license_number'] not in ['UNKNOWN', 'NO_OCR', '']:
+                best_score = row['license_number_score']
+                best_text = row['license_number']
+                best_frame = row['frame_nmr']
+        
+        # Obtener imagen de la placa
+        cap.set(cv2.CAP_PROP_POS_FRAMES, best_frame)
         ret, frame = cap.read()
         
+        license_crop = None
         if ret:
             try:
-                bbox_str = car_data['license_plate_bbox'].iloc[0]
-                x1, y1, x2, y2 = ast.literal_eval(bbox_str.replace('[ ', '[').replace('   ', ' ').replace('  ', ' ').replace(' ', ','))
-                license_crop = frame[int(y1):int(y2), int(x1):int(x2), :]
-                if license_crop.size > 0:
-                    license_crop = cv2.resize(license_crop, (int((x2 - x1) * 400 / (y2 - y1)), 400))
-                    license_plate[car_id]['license_crop'] = license_crop
-                else:
-                    # Crear imagen placeholder si no hay crop válido
-                    license_plate[car_id]['license_crop'] = np.ones((400, 200, 3), dtype=np.uint8) * 128
-            except:
-                # Crear imagen placeholder en caso de error
-                license_plate[car_id]['license_crop'] = np.ones((400, 200, 3), dtype=np.uint8) * 128
+                bbox = parse_bbox(car_data[car_data['frame_nmr'] == best_frame]['license_plate_bbox'].iloc[0])
+                x1, y1, x2, y2 = bbox
+                
+                if x2 > x1 and y2 > y1:
+                    license_crop = frame[int(y1):int(y2), int(x1):int(x2), :]
+                    if license_crop.size > 0:
+                        # Redimensionar para visualización
+                        aspect_ratio = (x2 - x1) / (y2 - y1)
+                        new_height = 80
+                        new_width = int(new_height * aspect_ratio)
+                        license_crop = cv2.resize(license_crop, (new_width, new_height))
+            except Exception as e:
+                print(f"⚠️ Error procesando placa del vehículo {car_id}: {e}")
+        
+        # Crear imagen placeholder si no hay crop válido
+        if license_crop is None or license_crop.size == 0:
+            license_crop = np.ones((80, 200, 3), dtype=np.uint8) * 128
+            cv2.putText(license_crop, 'NO IMAGE', (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        
+        license_plate_data[car_id] = {
+            'text': best_text,
+            'crop': license_crop,
+            'score': best_score
+        }
 
+    print(f"🚗 Procesados {len(license_plate_data)} vehículos únicos")
 
-frame_nmr = -1
-
-cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-
-# read frames
-ret = True
-while ret:
-    ret, frame = cap.read()
-    frame_nmr += 1
-    if ret:
-        df_ = results[results['frame_nmr'] == frame_nmr]
-        for row_indx in range(len(df_)):
-            # draw car
-            car_x1, car_y1, car_x2, car_y2 = ast.literal_eval(df_.iloc[row_indx]['car_bbox'].replace('[ ', '[').replace('   ', ' ').replace('  ', ' ').replace(' ', ','))
-            draw_border(frame, (int(car_x1), int(car_y1)), (int(car_x2), int(car_y2)), (0, 255, 0), 25,
-                        line_length_x=200, line_length_y=200)
-
-            # draw license plate
-            x1, y1, x2, y2 = ast.literal_eval(df_.iloc[row_indx]['license_plate_bbox'].replace('[ ', '[').replace('   ', ' ').replace('  ', ' ').replace(' ', ','))
-            cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 0, 255), 12)
-
-            # crop license plate
-            license_crop = license_plate[df_.iloc[row_indx]['car_id']]['license_crop']
-
-            H, W, _ = license_crop.shape
-
+    # Procesar video frame por frame
+    cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+    frame_nmr = 0
+    
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+            
+        # Obtener detecciones para este frame
+        frame_data = results[results['frame_nmr'] == frame_nmr]
+        
+        for _, row in frame_data.iterrows():
             try:
-                frame[int(car_y1) - H - 100:int(car_y1) - 100,
-                      int((car_x2 + car_x1 - W) / 2):int((car_x2 + car_x1 + W) / 2), :] = license_crop
-
-                frame[int(car_y1) - H - 400:int(car_y1) - H - 100,
-                      int((car_x2 + car_x1 - W) / 2):int((car_x2 + car_x1 + W) / 2), :] = (255, 255, 255)
-
-                (text_width, text_height), _ = cv2.getTextSize(
-                    license_plate[df_.iloc[row_indx]['car_id']]['license_plate_number'],
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    4.3,
-                    17)
-
-                cv2.putText(frame,
-                            license_plate[df_.iloc[row_indx]['car_id']]['license_plate_number'],
-                            (int((car_x2 + car_x1 - text_width) / 2), int(car_y1 - H - 250 + (text_height / 2))),
-                            cv2.FONT_HERSHEY_SIMPLEX,
-                            4.3,
-                            (0, 0, 0),
-                            17)
-
-            except:
-                pass
-
+                car_id = row['car_id']
+                
+                # Dibujar vehículo
+                car_bbox = parse_bbox(row['car_bbox'])
+                car_x1, car_y1, car_x2, car_y2 = car_bbox
+                
+                draw_border(frame, (int(car_x1), int(car_y1)), (int(car_x2), int(car_y2)), 
+                           (0, 255, 0), 15, line_length_x=100, line_length_y=100)
+                
+                # Dibujar placa
+                lp_bbox = parse_bbox(row['license_plate_bbox'])
+                lp_x1, lp_y1, lp_x2, lp_y2 = lp_bbox
+                
+                cv2.rectangle(frame, (int(lp_x1), int(lp_y1)), (int(lp_x2), int(lp_y2)), (0, 0, 255), 3)
+                
+                # Mostrar información de la placa
+                if car_id in license_plate_data:
+                    plate_info = license_plate_data[car_id]
+                    license_crop = plate_info['crop']
+                    license_text = plate_info['text']
+                    
+                    # Posición para mostrar la placa ampliada
+                    crop_h, crop_w = license_crop.shape[:2]
+                    
+                    # Calcular posición arriba del vehículo
+                    display_x = max(0, int((car_x1 + car_x2 - crop_w) / 2))
+                    display_y = max(crop_h + 60, int(car_y1) - crop_h - 60)
+                    
+                    # Asegurar que no se salga de la imagen
+                    if display_x + crop_w > width:
+                        display_x = width - crop_w
+                    if display_y < 0:
+                        display_y = int(car_y2) + 20
+                    
+                    # Mostrar imagen de placa ampliada
+                    try:
+                        frame[display_y:display_y + crop_h, display_x:display_x + crop_w] = license_crop
+                        
+                        # Fondo para el texto
+                        text_bg_y = display_y - 50
+                        if text_bg_y < 0:
+                            text_bg_y = display_y + crop_h + 10
+                        
+                        cv2.rectangle(frame, (display_x, text_bg_y), 
+                                    (display_x + crop_w, text_bg_y + 40), (0, 0, 0), -1)
+                        
+                        # Texto de la placa
+                        font_scale = min(1.2, crop_w / 150)
+                        cv2.putText(frame, license_text, (display_x + 5, text_bg_y + 30),
+                                  cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 255, 255), 2)
+                        
+                        # Mostrar confianza si es válida
+                        if plate_info['score'] > 0:
+                            conf_text = f"Conf: {plate_info['score']:.2f}"
+                            cv2.putText(frame, conf_text, (display_x + 5, text_bg_y + 15),
+                                      cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+                    
+                    except Exception as e:
+                        # Si hay error mostrando la imagen, solo mostrar el texto
+                        cv2.putText(frame, license_text, (int(car_x1), int(car_y1) - 10),
+                                  cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
+                
+            except Exception as e:
+                print(f"⚠️ Error procesando frame {frame_nmr}: {e}")
+                continue
+        
+        # Escribir frame al video de salida
         out.write(frame)
-        frame = cv2.resize(frame, (1280, 720))
+        
+        # Mostrar progreso cada 100 frames
+        if frame_nmr % 100 == 0:
+            print(f"📹 Procesando frame {frame_nmr}...")
+        
+        frame_nmr += 1
 
-        # cv2.imshow('frame', frame)
-        # cv2.waitKey(0)
+    # Limpiar recursos
+    out.release()
+    cap.release()
+    
+    print(f"✅ Video generado: ./out.mp4")
+    print(f"📊 Total de frames procesados: {frame_nmr}")
 
-out.release()
-cap.release()
+if __name__ == "__main__":
+    main()

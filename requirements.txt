@@ -4,5 +4,5 @@ opencv-python
 numpy
 scipy
 filterpy
-# easyocr  # OCR deshabilitado
+easyocr
 # lap  # Opcional para SORT, se usa scipy como alternativa

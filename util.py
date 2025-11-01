@@ -1,22 +1,20 @@
 import string
-# import easyocr  # OCR deshabilitado
+import easyocr
 import cv2
 import numpy as np
 import re
 
-# 🔹 Inicializar EasyOCR con soporte en inglés y español - DESHABILITADO
-# reader = easyocr.Reader(['en', 'es'], gpu=True)
+# Inicializar EasyOCR
+reader = easyocr.Reader(['en', 'es'], gpu=False)
 
-# 🔹 Mapeos de caracteres comunes en placas colombianas - DESHABILITADO
-# dict_char_to_int = {'O': '0', 'Q': '0', 'I': '1', 'L': '1', 'B': '8', 'S': '5', 'G': '6', 'Z': '2'}
-# dict_int_to_char = {'0': 'O', '1': 'I', '2': 'Z', '3': 'B', '4': 'A', '5': 'S', '6': 'G', '8': 'B'}
+# Mapeos de caracteres comunes en placas
+dict_char_to_int = {'O': '0', 'Q': '0', 'I': '1', 'L': '1', 'B': '8', 'S': '5', 'G': '6', 'Z': '2'}
+dict_int_to_char = {'0': 'O', '1': 'I', '2': 'Z', '3': 'B', '4': 'A', '5': 'S', '6': 'G', '8': 'B'}
 
-# ----------------------------------------------------------
-# 🧩 Guardar CSV de resultados
-# ----------------------------------------------------------
 def write_csv(results, output_path):
+    """Guardar resultados en archivo CSV"""
     with open(output_path, 'w') as f:
-        f.write('frame_nmr,car_id,car_bbox,license_plate_bbox,license_plate_bbox_score,license_number,license_number_score\n')
+        f.write('frame_nmr,car_id,car_bbox,license_plate_bbox,license_plate_bbox_score,license_number,license_number_score\\n')
 
         for frame_nmr in results.keys():
             for car_id in results[frame_nmr].keys():
@@ -28,100 +26,138 @@ def write_csv(results, output_path):
                     lp_bbox = [float(x) if isinstance(x, (int, float, np.floating)) else 0 for x in lp['bbox']]
                     lp_bbox_score = float(lp['bbox_score']) if isinstance(lp['bbox_score'], (int, float, np.floating)) else 0
                     lp_text_score = float(lp['text_score']) if isinstance(lp['text_score'], (int, float, np.floating)) else 0
-                    lp_text = lp['text'] if 'text' in lp else 'NO_OCR'
+                    lp_text = lp['text'] if 'text' in lp else 'UNKNOWN'
                     
-                    # Formatear las coordenadas correctamente
+                    # Formatear coordenadas
                     car_bbox_str = ' '.join(map(str, car_bbox))
                     lp_bbox_str = ' '.join(map(str, lp_bbox))
                     
-                    # Escribir la línea al CSV
-                    f.write(f'{frame_nmr},{car_id},[{car_bbox_str}],[{lp_bbox_str}],{lp_bbox_score},{lp_text},{lp_text_score}\n')
+                    # Escribir línea al CSV
+                    f.write(f'{frame_nmr},{car_id},[{car_bbox_str}],[{lp_bbox_str}],{lp_bbox_score},{lp_text},{lp_text_score}\\n')
 
-# ----------------------------------------------------------
-# 🧩 Mejorada: Validación flexible para placas colombianas - DESHABILITADO
-# ----------------------------------------------------------
-# def license_complies_format(text):
-#     """
-#     Comprueba si el texto tiene el formato de una placa colombiana:
-#     - 3 letras + 3 números (ABC123)
-#     - 3 letras + 2 números + 1 letra (ABC12D)
-#     """
-#     pattern1 = r'^[A-Z]{3}[0-9]{3}$'      # ABC123
-#     pattern2 = r'^[A-Z]{3}[0-9]{2}[A-Z]$' # ABC12D
-#     return re.match(pattern1, text) or re.match(pattern2, text)
+def license_complies_format(text):
+    """Validar formato de placa vehicular"""
+    if len(text) < 5 or len(text) > 7:
+        return False
+    
+    patterns = [
+        r'^[A-Z]{3}[0-9]{3}$',      # ABC123
+        r'^[A-Z]{3}[0-9]{2}[A-Z]$', # ABC12D
+        r'^[A-Z]{2}[0-9]{3}[A-Z]$', # AB123C
+        r'^[0-9]{3}[A-Z]{3}$',      # 123ABC
+    ]
+    
+    return any(re.match(pattern, text) for pattern in patterns)
 
-# ----------------------------------------------------------
-# 🧩 Convertir letras/números parecidos - DESHABILITADO
-# ----------------------------------------------------------
-# def format_license(text):
-#     text = text.upper().replace(' ', '').replace('-', '')
-#     formatted = ''
-#     for char in text:
-#         if char in dict_char_to_int:
-#             formatted += dict_char_to_int[char]
-#         elif char in dict_int_to_char:
-#             formatted += dict_int_to_char[char]
-#         else:
-#             formatted += char
-#     return formatted
+def format_license(text):
+    """Corregir caracteres comúnmente mal interpretados"""
+    text = text.upper().replace(' ', '').replace('-', '').replace('.', '')
+    formatted = ''
+    
+    for i, char in enumerate(text):
+        # Aplicar correcciones contextuales
+        if i < 3:  # Primeras posiciones suelen ser letras
+            if char in dict_int_to_char:
+                formatted += dict_int_to_char[char]
+            else:
+                formatted += char
+        else:  # Posiciones posteriores pueden ser números
+            if char in dict_char_to_int:
+                formatted += dict_char_to_int[char]
+            else:
+                formatted += char
+    
+    return formatted
 
-# ----------------------------------------------------------
-# 🧩 Preprocesamiento avanzado antes de OCR - DESHABILITADO
-# ----------------------------------------------------------
-# def preprocess_plate(plate_img):
-#     gray = cv2.cvtColor(plate_img, cv2.COLOR_BGR2GRAY)
-# 
-#     # Mejorar contraste
-#     gray = cv2.equalizeHist(gray)
-# 
-#     # Filtro bilateral (reduce ruido sin borrar bordes)
-#     gray = cv2.bilateralFilter(gray, 9, 75, 75)
-# 
-#     # Binarización adaptativa
-#     thresh = cv2.adaptiveThreshold(gray, 255,
-#                                    cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-#                                    cv2.THRESH_BINARY_INV, 35, 15)
-#     return thresh
+def preprocess_plate(plate_img):
+    """Preprocesamiento optimizado para OCR"""
+    if plate_img is None or plate_img.size == 0:
+        return None
+    
+    # Redimensionar si es muy pequeña
+    h, w = plate_img.shape[:2]
+    if h < 30 or w < 80:
+        scale = max(30/h, 80/w)
+        new_w, new_h = int(w * scale), int(h * scale)
+        plate_img = cv2.resize(plate_img, (new_w, new_h))
+    
+    # Convertir a escala de grises
+    gray = cv2.cvtColor(plate_img, cv2.COLOR_BGR2GRAY)
+    
+    # Aplicar desenfoque gaussiano
+    gray = cv2.GaussianBlur(gray, (3, 3), 0)
+    
+    # Mejorar contraste con CLAHE
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    gray = clahe.apply(gray)
+    
+    # Umbral adaptativo
+    thresh = cv2.adaptiveThreshold(
+        gray, 255,
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY,
+        35, 11
+    )
+    
+    # Limpieza de ruido
+    kernel = np.ones((2, 2), np.uint8)
+    thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
+    
+    # Detección automática de inversión
+    white_ratio = cv2.countNonZero(thresh) / (thresh.shape[0] * thresh.shape[1])
+    if white_ratio < 0.4:
+        thresh = cv2.bitwise_not(thresh)
+    
+    return thresh
 
-# ----------------------------------------------------------
-# 🧩 Lectura OCR robusta - DESHABILITADO
-# ----------------------------------------------------------
-# def read_license_plate(license_plate_crop):
-#     if license_plate_crop is None or license_plate_crop.size == 0:
-#         return None, None
-# 
-#     try:
-#         # Preprocesar imagen antes del OCR
-#         plate_preprocessed = preprocess_plate(license_plate_crop)
-# 
-#         # Leer texto con EasyOCR
-#         detections = reader.readtext(plate_preprocessed)
-# 
-#         best_text = None
-#         best_score = 0
-# 
-#         for detection in detections:
-#             _, text, score = detection
-#             text = text.upper().replace(' ', '').replace('-', '')
-# 
-#             if license_complies_format(text):
-#                 formatted = format_license(text)
-#                 if score > best_score:
-#                     best_text, best_score = formatted, score
-# 
-#         if best_text:
-#             return best_text, best_score
-# 
-#     except Exception as e:
-#         print(f"⚠️ Error en OCR: {e}")
-#         return None, None
-# 
-#     return None, None
+def read_license_plate(license_plate_crop):
+    """Lectura OCR mejorada con múltiples intentos"""
+    if license_plate_crop is None or license_plate_crop.size == 0:
+        return None, None
+    
+    try:
+        results = []
+        
+        # Intento 1: Imagen original
+        detections = reader.readtext(license_plate_crop, allowlist='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789')
+        for detection in detections:
+            _, text, score = detection
+            if len(text) >= 4:
+                results.append((text, score))
+        
+        # Intento 2: Imagen preprocesada
+        preprocessed = preprocess_plate(license_plate_crop)
+        if preprocessed is not None:
+            detections = reader.readtext(preprocessed, allowlist='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789')
+            for detection in detections:
+                _, text, score = detection
+                if len(text) >= 4:
+                    results.append((text, score * 0.9))
+        
+        # Procesar resultados
+        best_text = None
+        best_score = 0
+        
+        for text, score in results:
+            text = text.upper().replace(' ', '').replace('-', '').replace('.', '')
+            
+            # Aplicar correcciones
+            formatted = format_license(text)
+            
+            # Verificar formato y seleccionar el mejor
+            if license_complies_format(formatted) and score > best_score:
+                best_text, best_score = formatted, score
+            elif len(formatted) >= 5 and score > best_score and best_text is None:
+                best_text, best_score = formatted, score
+        
+        return best_text, best_score
+        
+    except Exception as e:
+        print(f"⚠️ Error en OCR: {e}")
+        return None, None
 
-# ----------------------------------------------------------
-# 🧩 Asignar placa a vehículo
-# ----------------------------------------------------------
 def get_car(license_plate, vehicle_track_ids):
+    """Asignar placa a vehículo"""
     x1, y1, x2, y2, score, class_id = license_plate
 
     for j in range(len(vehicle_track_ids)):

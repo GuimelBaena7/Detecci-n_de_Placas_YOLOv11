@@ -3,6 +3,7 @@ import easyocr
 import cv2
 import numpy as np
 import re
+import csv
 
 # Inicializar EasyOCR
 reader = easyocr.Reader(['en', 'es'], gpu=True)

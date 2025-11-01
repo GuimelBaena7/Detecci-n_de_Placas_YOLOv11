@@ -5,7 +5,7 @@ import numpy as np
 import re
 
 # Inicializar EasyOCR
-reader = easyocr.Reader(['en', 'es'], gpu=False)
+reader = easyocr.Reader(['en', 'es'], gpu=True)
 
 # Mapeos de caracteres comunes en placas
 dict_char_to_int = {'O': '0', 'Q': '0', 'I': '1', 'L': '1', 'B': '8', 'S': '5', 'G': '6', 'Z': '2'}
